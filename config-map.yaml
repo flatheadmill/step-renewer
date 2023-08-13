@@ -6,4 +6,5 @@ metadata:
   labels:
     step-renewer.prettyrobots.com: enabled
 data:
-  hello: world
+  tls.crt: crt
+  tls.key: key
