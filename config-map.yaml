@@ -3,5 +3,7 @@ kind: ConfigMap
 metadata:
   namespace: step-renewer
   name: example
+  labels:
+    step-renewer.prettyrobots.com: enabled
 data:
   hello: world
