@@ -26,7 +26,7 @@ function {
             - crontab: "* * * * *"
             kubernetes:
             - apiVersion: v1
-              kind: ConfigMap
+              kind: Secret
               labelSelector:
                 matchLabels:
                   step-renewer.prettyrobots.com: enabled
@@ -34,7 +34,7 @@ function {
         EOF
     else
         cat "$BINDING_CONTEXT_PATH"
-        config_map_name=$(jq -r '.[0].object.metadata.name' $BINDING_CONTEXT_PATH)
-        print -- "ConfigMap '${config_map_name}' added"
+        secret_name=$(jq -r '.[0].object.metadata.name' $BINDING_CONTEXT_PATH)
+        print -- "Secret '${config_map_name}' added"
     fi
 } "$@"
