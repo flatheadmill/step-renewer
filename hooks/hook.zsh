@@ -25,6 +25,9 @@ function {
             kubernetes:
             - apiVersion: v1
               kind: ConfigMap
+              labelSelector:
+                matchLabels:
+                  step-renewer.prettyrobots.com: enabled
               executeHookOnEvent: [ "Added" ]
         EOF
     else
