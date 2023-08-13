@@ -28,7 +28,7 @@ function {
               executeHookOnEvent: [ "Added" ]
         EOF
     else
-        config_map_name=$(jq -r .[0].object.metadata.name $BINDING_CONTEXT_PATH)
+        config_map_name=$(jq -r '.[0].object.metadata.name' $BINDING_CONTEXT_PATH)
         print -- "ConfigMap '${config_map_name}' added"
     fi
 } "$@"
