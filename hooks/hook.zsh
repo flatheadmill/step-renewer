@@ -22,6 +22,8 @@ function {
     if [[ ${1:-} = '--config' ]]; then
         quotedoc <<'        EOF'
             configVersion: v1
+            schedule:
+            - crontab: "* * * * *"
             kubernetes:
             - apiVersion: v1
               kind: ConfigMap
@@ -31,6 +33,7 @@ function {
               executeHookOnEvent: [ "Added" ]
         EOF
     else
+        cat "$BINDING_CONTEXT_PATH"
         config_map_name=$(jq -r '.[0].object.metadata.name' $BINDING_CONTEXT_PATH)
         print -- "ConfigMap '${config_map_name}' added"
     fi
