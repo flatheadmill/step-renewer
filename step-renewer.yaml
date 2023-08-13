@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: step-renewer
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: step-renewer
+  name: step-renewer
+spec:
+  containers:
+  - name: step-renewer
+    image: flatheadmill/step-renewer:latest
+    imagePullPolicy: Always
+  serviceAccountName: step-renewer
