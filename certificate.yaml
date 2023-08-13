@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: step-renewer
-  name: example
-  labels:
-    step-renewer.prettyrobots.com: enabled
-data:
-  tls.crt: Y3J0Cg==
