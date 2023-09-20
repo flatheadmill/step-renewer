@@ -1,0 +1,27 @@
+#!/usr/bin/env zsh
+
+source "${0:a:h}/../lib/step-renewer.zsh"
+
+function {
+    typeset config_map_name
+    if [[ ${1:-} = '--config' ]]; then
+        quotedoc <<'        EOF'
+            configVersion: v1
+            schedule:
+            - crontab: "* * * * *"
+            kubernetes:
+            - apiVersion: v1
+              kind: Secret
+              labelSelector:
+                matchLabels:
+                  flatheadmaill.github.com: step-renewer
+              executeHookOnEvent: []
+        EOF
+    else
+        [[ -n "$STEP_RENEWER_UNSAFE_LOGGING" ]] && {
+            cat "$BINDING_CONTEXT_PATH"
+            print
+        }
+        process_binding_context "$BINDING_CONTEXT_PATH"
+    fi
+} "$@"

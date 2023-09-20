@@ -13,4 +13,41 @@ spec:
   - name: step-renewer
     image: flatheadmill/step-renewer:latest
     imagePullPolicy: Always
+    env:
+    - name: STEP_RENEWER_STEP_CA_URL
+      value: https://ca.prettyrobots.net
+    - name: STEP_RENEWER_STEP_CA_FINGERPRINT
+      value: 6fedeaa92e08e59967b8cb4ead5427b2c51a6ccb45cfe4f504d5af1a3392c16c
+    - name: STEP_RENEWER_EXPIRES_IN
+      value: '80%'
+    - name:  STEP_RENEWER_DEBUG
+      value: '1'
   serviceAccountName: step-renewer
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: step-renewer
+  namespace: step-renewer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: step-renewer
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: step-renewer
+subjects:
+- kind: ServiceAccount
+  name: step-renewer
+  namespace: step-renewer
+roleRef:
+  kind: ClusterRole
+  name: step-renewer
+  apiGroup: rbac.authorization.k8s.io

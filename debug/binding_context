@@ -1,0 +1,12 @@
+#!/usr/bin/env zsh
+
+source "${0:a:h}/../lib/step-renewer.zsh"
+
+function {
+    typeset tmp=$(mktemp -d)
+    {
+        STEPPATH="$tmp/step" process_binding_context './snapshot.json'
+    } always {
+        rm -rf "$tmp"
+    }
+} "$@"

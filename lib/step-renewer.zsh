@@ -7,8 +7,7 @@ function abend {
 }
 
 function quotedoc {
-    typeset heredoc spaces=65536 leading='^( +)([^[:space:]])' IFS='' dedented
-    typeset -a lines
+    typeset lines=() spaces=65536 leading='^( +)([^[:space:]])' IFS='' dedented
     while read -r line; do
         lines+=("$line")
         if [[ "$line" =~ $leading && "${#match[1]}" -lt "$spaces" ]]; then
@@ -19,7 +18,7 @@ function quotedoc {
     eval "$({
         print "cat <<EOF"
         printf '%s' "$dedented"
-        print "EOF"
+        print EOF
     })"
 }
 
@@ -56,7 +55,7 @@ function process_binding_context {
     shift
     step ca bootstrap --force \
         --ca-url "$STEP_RENEWER_STEP_CA_URL" \
-        --fingerprint "$STEP_RENEWER_FINGERPRINT" > /dev/null 2>&1 || \
+        --fingerprint "$STEP_RENEWER_STEP_CA_FINGERPRINT" > /dev/null 2>&1 || \
             abend 'unable to bootstrap step'
     eval "set -- $(
         jq -r '[
@@ -69,56 +68,3 @@ function process_binding_context {
         shift 4
     done
 }
-
-function main {
-    typeset config_map_name
-    if [[ ${1:-} = '--config' ]]; then
-        quotedoc <<'        EOF'
-            configVersion: v1
-            schedule:
-            - crontab: "* * * * *"
-            kubernetes:
-            - apiVersion: v1
-              kind: Secret
-              labelSelector:
-                matchLabels:
-                  step-renewer.prettyrobots.com: enabled
-              executeHookOnEvent: []
-        EOF
-    else
-        [[ -n "$STEP_RENEWER_UNSAFE_LOGGING" ]] && {
-            cat "$BINDING_CONTEXT_PATH"
-            print
-        }
-        process_binding_context "$BINDING_CONTEXT_PATH"
-    fi
-}
-
-function debug_binding_context {
-    typeset tmp=$(mktemp -d)
-    {
-        STEPPATH="$tmp/step" process_binding_context './snapshot.json'
-    } always {
-        rm -rf "$tmp"
-    }
-}
-
-# Used for debugging.
-function debug_renewal {
-    typeset namespace=${1:-} name=${2:-}
-    typeset tmp=$(mktemp -d)
-    {
-        eval "set -- $(
-            kubectl -n "$namespace" get secret "$name" -o json | jq -r '[ .data["tls.crt"], .data["tls.key"] ] | @sh'
-        )"
-        STEPPATH="$tmp/step" step ca bootstrap --force \
-            --ca-url "$STEP_RENEWER_STEP_CA_URL" \
-            --fingerprint "$STEP_RENEWER_FINGERPRINT" > /dev/null 2>&1 || \
-                abend 'unable to bootstrap step'
-        STEPPATH="$tmp/step" maybe_renew_certificate $name $namespace "$@"
-    } always {
-        rm -rf "$tmp"
-    }
-}
-
-debug_renewal "$@"

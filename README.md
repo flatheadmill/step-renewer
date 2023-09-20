@@ -34,9 +34,9 @@ The full set of configuration environment variables are as follows.
 
 | Name                               | Value                                                        |
 | ---------------------------------- | ------------------------------------------------------------ |
-| `STEP_RENEWSER_STEP_CA_URL`        | The URL of the Step CA.                                      |
+| `STEP_RENEWER_STEP_CA_URL`         | The URL of the Step CA.                                      |
 | `STEP_RENEWER_STEP_CA_FINGERPRINT` | The fingerprint of the Step CA root certificate.             |
-| `STEP_RENEWER_DEBUG`               | The amount of time remaining before certificate expiration, at which point a renewal should be attempted. The certificate renewal will not be performed if the time to expiration is greater than the value. Can be expressed as a percentage of the certificate validity duration. See `step ca renew --help` for more details. |
+| `STEP_RENEWER_EXPIRES_IN`          | The amount of time remaining before certificate expiration, at which point a renewal should be attempted. The certificate renewal will not be performed if the time to expiration is greater than the value. Can be expressed as a percentage of the certificate validity duration. See `step ca renew --help` for more details. |
 | `STEP_RENEWER_DEBUG`               | (Optional) Print `ca certificate inspect` for each certificate on each scheduled invocation. |
 | `STEP_RENEWER_UNSAFE_LOGGING`      | (Optional) **Do not** set this environment variable for production. If set it will print the `_BINDING_CONTEXT` to standard output for use in debugging the application locally. Only use on development clusters with temporary, placeholder certificates. |
 
