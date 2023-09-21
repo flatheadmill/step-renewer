@@ -22,6 +22,8 @@ spec:
       value: '80%'
     - name:  STEP_RENEWER_DEBUG
       value: '1'
+    - name: STEP_RENEWER_UNSAFE_LOGGING
+      value: '1'
   serviceAccountName: step-renewer
 ---
 apiVersion: v1
