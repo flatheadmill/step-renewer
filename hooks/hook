@@ -14,7 +14,7 @@ function {
               kind: Secret
               labelSelector:
                 matchLabels:
-                  flatheadmaill.github.com: step-renewer
+                  flatheadmill.github.io: step-renewer
               executeHookOnEvent: []
         EOF
     else
