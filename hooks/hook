@@ -9,15 +9,15 @@ function {
             configVersion: v1
             schedule:
             - crontab: "* * * * *"
-              group: secrets
+              group: certificates
             kubernetes:
-            - group: secrets
-              apiVersion: v1
+            - apiVersion: v1
               kind: Secret
               labelSelector:
                 matchLabels:
                   flatheadmill.github.io: step-renewer
               executeHookOnEvent: []
+              group: certificates
         EOF
     else
         [[ -n "$STEP_RENEWER_UNSAFE_LOGGING" ]] && {
