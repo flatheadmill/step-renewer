@@ -59,7 +59,7 @@ function process_binding_context {
             abend 'unable to bootstrap step'
     eval "set -- $(
         jq -r '[
-            .[0] |
+            .[0].snapshots.kubernetes[] |
                 (.object.metadata.name, .object.metadata.namespace, .object.data["tls.crt"], .object.data["tls.key"])
         ] | @sh' < "$process_binding"
     )"
