@@ -1,11 +1,13 @@
 #!/usr/bin/env zsh
 
 source "${0:a:h}/step-renewer.zsh"
+source "${0:a:h}/config.zsh"
 
 function {
     typeset config_map_name
     if [[ ${1:-} = '--config' ]]; then
-        quotedoc <<'        EOF'
+        config
+        false && quotedoc <<'        EOF'
             configVersion: v1
             schedule:
             - crontab: "* * * * *"

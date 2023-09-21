@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 
-source "${0:a:h}/../lib/step-renewer.zsh"
+source "${0:a:h}/../hooks/step-renewer.zsh"
 
 function {
     typeset namespace=${1:-} name=${2:-}
