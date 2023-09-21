@@ -9,9 +9,9 @@ function {
             configVersion: v1
             schedule:
             - crontab: "* * * * *"
-              includeSnapshotsFrom: secrets
+              group: secrets
             kubernetes:
-            - name: secrets
+            - group: secrets
               apiVersion: v1
               kind: Secret
               labelSelector:
