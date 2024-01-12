@@ -22,6 +22,9 @@ spec:
       value: '80%'
     - name:  STEP_RENEWER_DEBUG
       value: '1'
+    - name: STEP_RENEWER_HUP
+      value: |
+        curl http:://program.program/reload-certs
   serviceAccountName: step-renewer
 ---
 apiVersion: v1

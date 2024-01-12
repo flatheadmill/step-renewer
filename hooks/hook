@@ -7,25 +7,11 @@ function {
     typeset config_map_name
     if [[ ${1:-} = '--config' ]]; then
         config
-        false && quotedoc <<'        EOF'
-            configVersion: v1
-            schedule:
-            - crontab: "* * * * *"
-              group: certificates
-            kubernetes:
-            - apiVersion: v1
-              kind: Secret
-              labelSelector:
-                matchLabels:
-                  flatheadmill.github.io: step-renewer
-              executeHookOnEvent: []
-              group: certificates
-        EOF
     else
-        [[ -n "$STEP_RENEWER_UNSAFE_LOGGING" ]] && {
+        if [[ $STEP_RENEWER_UNSAFE_LOGGING = 1 ]]; then
             cat "$BINDING_CONTEXT_PATH"
             print
-        }
+        fi
         process_binding_context "$BINDING_CONTEXT_PATH"
     fi
 } "$@"
