@@ -23,8 +23,8 @@ function quotedoc {
 }
 
 function maybe_renew_certificate {
-    typeset name=${1:-} namespace=${2:-} crt=${3:-} key=${4:-}
-    typeset tmp=$(mktemp -d) expires
+    typeset name=${1:-} namespace=${2:-} crt=${3:-} key=${4:-} tmp expires
+    tmp=$(mktemp -d) || abend 'cannot create temporary directory'
     {
         base64 -d <<< "$key" > "$tmp/temp.key"
         base64 -d <<< "$crt" > "$tmp/temp.crt"
@@ -33,14 +33,14 @@ function maybe_renew_certificate {
         if step certificate needs-renewal --expires-in "$STEP_RENEWER_EXPIRES_IN" "$tmp/temp.crt" 2>/dev/null; then
             print -- "secret=$namespace/$name expires=$expires status=renewing"
             step certificate fingerprint "$tmp/temp.crt"
-            step ca renew --force "$tmp/temp.crt" "$tmp/temp.key" 2>/dev/null
+            step ca renew --force "$tmp/temp.crt" "$tmp/temp.key" || abend 'unable to renew `%s/%s`.' $namespace $name
             expires=$(step certificate inspect --format json "$tmp/temp.crt" | jq -r '.validity.end')
             print -- "secret=$namespace/$name expires=$expires status=renewed"
-            expires=$(step certificate inspect --format json "$tmp/temp.crt" | jq -r '.validity.end')
             quotedoc <<'            EOF' > "$tmp/patch.yaml"
                 data:
-                    tls.crt: $(base64 < "$tmp/temp.crt")
+                    tls.crt: $(base64 -w 0 < "$tmp/temp.crt")
             EOF
+            cat "$tmp/patch.yaml"
             kubectl -n $namespace patch secret $name --patch-file "$tmp/patch.yaml" > /dev/null
             if [[ -n $STEP_RENEWER_HUP ]]; then
                 cat <<< "$STEP_RENEWER_HUP" > "$tmp/hup"
@@ -64,7 +64,7 @@ function process_binding_context {
         --ca-url "$STEP_RENEWER_STEP_CA_URL" \
         --fingerprint "$STEP_RENEWER_STEP_CA_FINGERPRINT" > /dev/null 2>&1 || \
             abend 'unable to bootstrap step'
-    set -- "${(@QA){$(z)$(
+    set -- "${(@QA)${(z)$(
         jq -r '[
             .[0].snapshots.kubernetes[] |
                 (.object.metadata.name, .object.metadata.namespace, .object.data["tls.crt"], .object.data["tls.key"])
