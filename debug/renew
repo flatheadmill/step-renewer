@@ -1,20 +1,8 @@
 #!/usr/bin/env zsh
 
-source "${0:a:h}/../hooks/step-renewer.zsh"
+source ${0:a:h}/../hooks/step-renewer.zsh
 
 function {
-    typeset namespace=${1:-} name=${2:-}
-    typeset tmp=$(mktemp -d)
-    {
-        set -- "${(QA@)${(z)$(
-            kubectl -n "$namespace" get secret "$name" -o json | jq -r '[ .data["tls.crt"], .data["tls.key"] ] | @sh'
-        )}}"
-        STEPPATH="$tmp/step" step ca bootstrap --force \
-            --ca-url "$STEP_RENEWER_STEP_CA_URL" \
-            --fingerprint "$STEP_RENEWER_STEP_CA_FINGERPRINT" > /dev/null 2>&1 || \
-                abend 'unable to bootstrap step'
-        STEPPATH="$tmp/step" maybe_renew_certificate $name $namespace "$@"
-    } always {
-        [[ -d "$tmp" ]] && rm -rf "$tmp"
-    }
+    typeset namespace=${1:-}
+    renew_certificates <(kubectl -n "$namespace" get secrets -o json | jq '.items')
 } "$@"

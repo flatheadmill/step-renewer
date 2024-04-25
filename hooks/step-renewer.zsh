@@ -6,69 +6,51 @@ function abend {
     exit 1
 }
 
-function quotedoc {
-    typeset lines=() spaces=65536 leading='^( +)([^[:space:]])' IFS='' dedented match=()
-    while read -r line; do
-        lines+=("$line")
-        if [[ "$line" =~ $leading && "${#match[1]}" -lt "$spaces" ]]; then
-            spaces="${#match[1]}"
-        fi
-    done
-    read -r -d '' dedented < <(printf "%s\n" "${lines[@]}" | sed -E 's/^ {'$spaces'}//')
-    eval "$({
-        print "cat <<EOF"
-        printf '%s' "$dedented"
-        print EOF
-    })"
-}
+# Note that the key is never written to this temporary directory, is read with
+# process substitution so that the key is never written do disk, at least not
+# by the code inside this project. We use a temp directory for the
+# certificate, though. The alternative is write process substitution. A temp
+# directory make the code easier to read.
 
 function maybe_renew_certificate {
-    typeset name=${1:-} namespace=${2:-} tmp expires pairs
-    shift 2
-    tmp=$(mktemp -d) || abend 'cannot create temporary directory'
-    {
-        while (( $# )); do
-            encoding=${1:-} crt_name=${2:-} crt=${3:-} key=${4:-}
-            shift 5
-            base64 -d <<< "$key" > "$tmp/temp.key"
-            base64 -d <<< "$crt" > "$tmp/temp.crt"
-            [[ $STEP_RENEWER_DEBUG = 1 ]] && step certificate inspect "$tmp/temp.crt"
-            expires=$(step certificate inspect --format json "$tmp/temp.crt" | jq -r '.validity.end')
-            if step certificate needs-renewal --expires-in "$STEP_RENEWER_EXPIRES_IN" "$tmp/temp.crt" 2>/dev/null; then
-                print -- "secret=$namespace/$name expires=$expires status=renewing"
-                step certificate fingerprint "$tmp/temp.crt"
-                step ca renew --force "$tmp/temp.crt" "$tmp/temp.key" || abend 'unable to renew `%s/%s`.' $namespace $name
-                expires=$(step certificate inspect --format json "$tmp/temp.crt" | jq -r '.validity.end')
-                print -- "secret=$namespace/$name expires=$expires status=renewed"
-                jo data="$(jo $crt_name=@<(base64 -w 0 < $tmp/temp.crt))" > $tmp/patch.json
-                cat "$tmp/patch.json"
-                kubectl -n $namespace patch secret $name --patch-file "$tmp/patch.json" > /dev/null
-            else
-                print -- "secret=$namespace/$name expires=$expires status=okay"
+    typeset tmp=${1:-} name=${2:-} namespace=${3:-} tmp expires
+    shift 3
+    while (( $# )); do
+        encoding=${1:-} crt_name=${2:-} crt=${3:-} key=${4:-}
+        shift 4
+        base64 -d <<< "$crt" > $tmp/temp.crt
+        [[ $STEP_RENEWER_DEBUG = 1 ]] && step certificate inspect $tmp/temp.crt
+        expires=$(step certificate inspect --format json $tmp/temp.crt | jq -r '.validity.end')
+        if step certificate needs-renewal --expires-in $STEP_RENEWER_EXPIRES_IN $tmp/temp.crt 2>/dev/null; then
+            print -- "secret=$namespace/$name expires=$expires status=renewing"
+            step certificate fingerprint $tmp/temp.crt
+            if ! step ca renew --force $tmp/temp.crt <(base64 -d <<< $key); then
+                printf 'unable to renew `%s/%s`.\n' $namespace $name
+                continue
             fi
-        done
-    } always {
-        [[ -d "$tmp" ]] && rm -rf "$tmp"
-    }
+            expires=$(step certificate inspect --format json $tmp/temp.crt | jq -r '.validity.end')
+            print -- "secret=$namespace/$name expires=$expires status=renewed"
+            kubectl -n $namespace patch secret $name --patch-file =(
+                jo data="$(jo $crt_name=%$tmp/temp.crt)"
+            ) > /dev/null
+        else
+            print -- "secret=$namespace/$name expires=$expires status=okay"
+        fi
+    done
 }
 
-function process_binding_context {
-    typeset process_binding=${1:-}
-    shift
+function renew_certificates {
     [[ -n $STEP_RENEWER_STEP_CA_URL ]] || abend 'STEP_RENEWER_STEP_CA_URL is not set'
     [[ -n $STEP_RENEWER_STEP_CA_FINGERPRINT ]] || abend 'STEP_RENEWER_STEP_CA_FINGERPRINT is not set'
-    step ca bootstrap --force \
-        --ca-url "$STEP_RENEWER_STEP_CA_URL" \
-        --fingerprint "$STEP_RENEWER_STEP_CA_FINGERPRINT" > /dev/null 2>&1 || \
-            abend 'unable to bootstrap step'
-    set -- "${(@QA)${(z)$(
-        jq -r '
+    typeset input=${1:-} tmp name count certificates=()
+    set -- "${(QA@)${(z)$(jq -r '
         [
-            .[0].snapshots.kubernetes[] |
-            .object as $root |
+            .[] |
+            select(.metadata.labels["flatheadmill.github.io"] == "step-renewer") |
+            . as $root |
             [[
-                if (.object.metadata.annotations | has("flatheadmill.github.io/pairs"))
-                then .object.metadata.annotations["flatheadmill.github.io/pairs"]
+                if (.metadata.annotations | has("flatheadmill.github.io/step-renewer/pairs"))
+                then .metadata.annotations["flatheadmill.github.io/step-renewer/pairs"]
                 else "tls.crt/tls.key/pem" end |
                     split(":")[] |
                     split("/") | {
@@ -79,23 +61,32 @@ function process_binding_context {
             ][] | (
                 .type,
                 .crt,
-                (.crt as $crt | if (.crt != "" and $root.data | has($crt)) then $root.data[.crt] else "" end),
-                (.key as $key | if (.key != "" and $root.data | has($key)) then $root.data[.key] else "" end)
+                (.crt as $crt | if ($root.data | has($crt)) then $root.data[.crt] else "" end),
+                (.key as $key | if ($root.data | has($key)) then $root.data[.key] else "" end)
             )] as $certficates |
-            (
-                .object.metadata.name,
-                .object.metadata.namespace,
-                $certficates | length,
-                $certficates[]
-            )
-        ] | flatten | @sh' < $process_binding
-    )}}"
-    typeset name namespace count certificates=()
-    while $(( #@ )); do
-        name=${1:-} namespace=${2:-} count=${3:-}
-        shift 3
-        certificates=( "${@[1,$count]}" )
-        shift $count
-        maybe_renew_certificates $name $namespace "${(@)certificates}"
-    done
+            (.metadata.name, .metadata.namespace, ($certficates | length), $certficates[])
+        ] | @sh
+    ' < $input)}}"
+    tmp=$(mktemp -d) || abend 'cannot create temporary directory'
+    {
+        STEPPATH=$tmp/step step ca bootstrap --force \
+            --ca-url "$STEP_RENEWER_STEP_CA_URL" \
+            --fingerprint "$STEP_RENEWER_STEP_CA_FINGERPRINT" > /dev/null 2>&1 || \
+                abend 'unable to bootstrap step'
+        while (( $# )); do
+            name=${1:-} namespace=${2:-} count=${3:-}
+            shift 3
+            certificates=( "$@[1,$count]" )
+            shift $count
+            STEPPATH=$tmp/step maybe_renew_certificate $tmp $name $namespace "${(@)certificates}"
+        done
+    } always {
+        [[ -d $tmp ]] && rm -rf $tmp
+    }
+}
+
+function process_binding_context {
+    typeset process_binding=${1:-}
+    shift
+    renew_certificates <(jq '.[0].snasphots.kubernetes' <<< $process_binding)
 }

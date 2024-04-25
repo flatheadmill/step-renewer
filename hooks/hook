@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
-source "${0:a:h}/step-renewer.zsh"
-source "${0:a:h}/config.zsh"
+source ${0:a:h}/step-renewer.zsh
+source ${0:a:h}/config.zsh
 
 function {
     typeset config_map_name
@@ -9,9 +9,9 @@ function {
         config
     else
         if [[ $STEP_RENEWER_UNSAFE_LOGGING = 1 ]]; then
-            cat "$BINDING_CONTEXT_PATH"
+            cat $BINDING_CONTEXT_PATH
             print
         fi
-        process_binding_context "$BINDING_CONTEXT_PATH"
+        process_binding_context $BINDING_CONTEXT_PATH
     fi
 } "$@"
