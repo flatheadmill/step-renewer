@@ -18,29 +18,23 @@ function maybe_renew_certificate {
     while (( $# )); do
         encoding=${1:-} crt_name=${2:-} crt=${3:-} key=${4:-}
         shift 4
-        print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding status=visiting"
         base64 -d <<< "$crt" > $tmp/temp.crt
-        print -- ---
-        cat $tmp/temp.crt
-        print -- ---
+        expires=$(step certificate inspect --format json $tmp/temp.crt | jq -r '.validity.end')
         if ! expires=$(step certificate inspect --format json $tmp/temp.crt | jq -r '.validity.end'); then
-            printf 'unable to inspect certificate.'
+            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding status=invalid"
             continue
+        else
+            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires status=visiting"
         fi
         [[ $STEP_RENEWER_DEBUG = 1 ]] && step certificate inspect $tmp/temp.crt
-        print there
         if step certificate needs-renewal --expires-in $STEP_RENEWER_EXPIRES_IN $tmp/temp.crt 2>/dev/null; then
-            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires status=renewed"
-            step certificate fingerprint $tmp/temp.crt
             if ! step ca renew --force $tmp/temp.crt <(base64 -d <<< $key); then
                 printf 'unable to renew `%s/%s`.\n' $namespace $name
                 continue
             fi
             expires=$(step certificate inspect --format json $tmp/temp.crt | jq -r '.validity.end')
-            print -- "secret=$namespace/$name expires=$expires status=renewed"
-            kubectl -n $namespace patch secret $name --patch-file =(
-                jo data="$(jo $crt_name=%$tmp/temp.crt)"
-            ) > /dev/null
+            kubectl -n $namespace patch secret $name --patch-file =(jo data="$(jo $crt_name=%$tmp/temp.crt)") > /dev/null
+            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires status=renewed"
         else
             print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires status=okay"
         fi
@@ -96,6 +90,5 @@ function renew_certificates {
 function process_binding_context {
     typeset process_binding=${1:-}
     shift
-    print $process_binding
     renew_certificates  <(jq '[ .[0].snapshots.kubernetes[] | .object ]' < $process_binding)
 }
