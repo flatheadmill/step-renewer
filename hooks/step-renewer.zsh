@@ -51,8 +51,8 @@ function renew_certificates {
             select(.metadata.labels["flatheadmill.github.io"] == "step-renewer") |
             . as $root |
             [[
-                if (.metadata.annotations | has("step-renewer.flatheadmill.github.io/pairs"))
-                then .metadata.annotations["step-renewer.flatheadmill.github.io/pairs"]
+                if (.metadata.annotations | has("flatheadmill.github.io/step-renewer.pairs"))
+                then .metadata.annotations["flatheadmill.github.io/step-renewer.pairs"]
                 else "tls.crt/tls.key/pem" end |
                     split(":")[] |
                     split("/") | {
