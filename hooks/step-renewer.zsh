@@ -48,7 +48,7 @@ function renew_certificates {
     set -- "${(QA@)${(z)$(jq -r '
         [
             .[] |
-            select(.metadata.labels["flatheadmill.github.io"] == "step-renewer") |
+            select(.metadata.labels["flatheadmill.github.io/step-renewer"] == "true") |
             . as $root |
             [[
                 if (.metadata.annotations | has("flatheadmill.github.io/step-renewer.pairs"))

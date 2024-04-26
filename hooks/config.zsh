@@ -11,7 +11,7 @@ function config {
                 kind=Secret \
                 labelSelector="$(
                     jo matchLabels="$(
-                        jo 'flatheadmill.github.io=step-renewer'
+                        jo 'flatheadmill.github.io/step-renewer=true'
                     )"
                 )" \
                 executeHookOnEvent='[]' \
