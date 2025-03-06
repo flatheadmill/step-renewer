@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
-source ${0:a:h}/step-renewer.zsh
-source ${0:a:h}/config.zsh
+source ${ZSH_ARGZERO:a:h}/step-renewer.zsh
+source ${ZSH_ARGZERO:a:h}/config.zsh
 
 function {
     typeset config_map_name

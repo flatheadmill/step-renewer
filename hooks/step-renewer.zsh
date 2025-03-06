@@ -8,9 +8,9 @@ function abend {
 
 # Note that the key is never written to this temporary directory, is read with
 # process substitution so that the key is never written do disk, at least not
-# by the code inside this project. We use a temp directory for the
-# certificate, though. The alternative is write process substitution. A temp
-# directory make the code easier to read.
+# by the code inside this file. We use a temp directory for the certificate,
+# though. The alternative is write process substitution. A temp directory
+# makes the code easier to read.
 
 function maybe_renew_certificate {
     typeset tmp=${1:-} name=${2:-} namespace=${3:-} expires
@@ -73,7 +73,7 @@ function renew_certificates {
     {
         STEPPATH=$tmp/step step ca bootstrap --force \
             --ca-url "$STEP_RENEWER_STEP_CA_URL" \
-            --fingerprint "$STEP_RENEWER_STEP_CA_FINGERPRINT" > /dev/null 2>&1 || \
+            --fingerprint "$STEP_RENEWER_STEP_CA_FINGERPRINT" > /dev/null 2>&1 ||
                 abend 'unable to bootstrap step'
         while (( $# )); do
             name=${1:-} namespace=${2:-} count=${3:-}
