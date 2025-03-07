@@ -21,10 +21,10 @@ function maybe_renew_certificate {
         base64 -d <<< "$crt" > $tmp/temp.crt
         expires=$(step certificate inspect --format json $tmp/temp.crt | jq -r '.validity.end')
         if ! expires=$(step certificate inspect --format json $tmp/temp.crt | jq -r '.validity.end'); then
-            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding status=invalid"
+            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding message=invalid"
             continue
         else
-            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires status=visiting"
+            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires message=visiting"
         fi
         [[ $STEP_RENEWER_DEBUG = 1 ]] && step certificate inspect $tmp/temp.crt
         if step certificate needs-renewal --expires-in $STEP_RENEWER_EXPIRES_IN $tmp/temp.crt 2>/dev/null; then
@@ -34,9 +34,9 @@ function maybe_renew_certificate {
             fi
             expires=$(step certificate inspect --format json $tmp/temp.crt | jq -r '.validity.end')
             kubectl -n $namespace patch secret $name --patch-file =(jo data="$(jo $crt_name=%$tmp/temp.crt)") > /dev/null
-            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires status=renewed"
+            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires message=renewed"
         else
-            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires status=okay"
+            print -- "secret=$namespace/$name certificate=$crt_name encoding=$encoding expires=$expires message=okay"
         fi
     done
 }
@@ -48,7 +48,7 @@ function renew_certificates {
     set -- "${(QA@)${(z)$(jq -r '
         [
             .[] |
-            select(.metadata.labels["flatheadmill.github.io/step-renewer"] == "true") |
+            select(.metadata.labels["flatheadmill.github.io/step-renewer"] == "") |
             . as $root |
             [[
                 if (.metadata.annotations | has("flatheadmill.github.io/step-renewer.pairs"))
