@@ -1,0 +1,17 @@
+#!/usr/bin/env zsh
+
+source ${ZSH_ARGZERO:a:h}/step-renewer.zsh
+source ${ZSH_ARGZERO:a:h}/config.zsh
+
+function {
+    typeset config_map_name
+    if [[ ${1:-} = '--config' ]]; then
+        config
+    else
+        if [[ $STEP_RENEWER_UNSAFE_LOGGING = 1 ]]; then
+            cat $BINDING_CONTEXT_PATH
+            print
+        fi
+        process_binding_context $BINDING_CONTEXT_PATH
+    fi
+} "$@"

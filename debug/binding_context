@@ -1,0 +1,12 @@
+#!/usr/bin/env zsh
+
+source ${0:a:h}/../hooks/step-renewer.zsh
+
+function {
+    typeset snapshot=${1:-} tmp=$(mktemp -d)
+    {
+        STEPPATH=$tmp/step process_binding_context $snapshot
+    } always {
+        rm -rf "$tmp"
+    }
+} "$@"
