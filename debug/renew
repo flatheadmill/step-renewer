@@ -1,8 +1,18 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env zshctl
 
 source ${0:a:h}/../hooks/step-renewer.zsh
 
-function {
-    typeset namespace=${1:-}
-    renew_certificates <(kubectl -n "$namespace" get secrets -o json | jq '.items')
-} "$@"
+function execute {
+    eval "$(args ,expires-in ,ca-url ,ca-fingerprint l,selector -- "$@")"
+    # typeset namespace=${1:-}
+    # renew_certificates <(kubectl -n "$namespace" get secrets -o json | jq '.items')
+    typeset args=()
+    if [[ -v o_selector ]]; then
+        args+=( --selector $o_selector )
+    fi
+    renew_certificates --expires-in $o_expires_in --ca-url=$o_ca_url --ca-fingerprint=$o_ca_fingerprint --secrets  <(
+        kubectl get secrets "${(@)args}" --all-namespaces --output json | jq -c '.items'
+    )
+}
+
+# vim: ft=zsh :

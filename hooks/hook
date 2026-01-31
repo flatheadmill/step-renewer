@@ -1,17 +1,19 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env zshctl
 
 source ${ZSH_ARGZERO:a:h}/step-renewer.zsh
 source ${ZSH_ARGZERO:a:h}/config.zsh
 
-function {
-    typeset config_map_name
-    if [[ ${1:-} = '--config' ]]; then
+function execute {
+    eval "$(args -b ,config -- "$@")"
+    if (( o_config )); then
         config
     else
         if [[ $STEP_RENEWER_UNSAFE_LOGGING = 1 ]]; then
             cat $BINDING_CONTEXT_PATH
             print
         fi
-        process_binding_context $BINDING_CONTEXT_PATH
+        process_binding_context
     fi
-} "$@"
+}
+
+# vim: ft=zsh :
