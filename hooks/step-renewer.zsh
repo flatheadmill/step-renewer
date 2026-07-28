@@ -52,9 +52,22 @@ function maybe_renew_certificate {
     done
     # Patch our secret all at once with the new certificates. We use the
     # expiration of our first renewal as the expiration date for the secret.
+    # The `expires` annotation is a stable, content-derived signal: a MarginalJob
+    # (or any watcher) can key idempotency on it to reload services exactly once
+    # per renewal without re-firing on its own bookkeeping writes.
     kubectl -n $namespace patch secret $name --patch-file =(
         jo data="$(jo "${(@)patches}")" metadata="$(jo annotations="$(jo step-renewer.flatheadmill.com/expires=$expirations[1])")"
     ) > /dev/null
+    # Run the optional reload hook. Its maximum reach is a curl by design: it is
+    # handed only the `<namespace>/<name>` of the renewed secret and runs in this
+    # pod, which holds no privilege beyond reading secrets. Services that need a
+    # kubectl-level reload (SIGHUP, rollout) are driven off the secret change by a
+    # MarginalJob instead, so this stays a plain-network escape hatch.
+    if [[ -n $STEP_RENEWER_HUP ]]; then
+        print -r -- "$STEP_RENEWER_HUP" > $tmp/hup
+        chmod +x $tmp/hup
+        $tmp/hup "$namespace/$name" || print -u2 -- "secret=$namespace/$name message=hup-failed"
+    fi
 }
 
 function renew_certificates {
@@ -115,5 +128,5 @@ function process_binding_context {
         --ca-url $STEP_RENEWER_STEP_CA_URL \
         --ca-fingerprint $STEP_RENEWER_STEP_CA_FINGERPRINT \
         --expires-in ${STEP_RENEWER_EXPIRES_IN:-50%} \
-        --cerificates <(jq '[ .[0].snapshots.kubernetes[].object ]' < $BINDING_CONTEXT_PATH)
+        --secrets <(jq '[ .[0].snapshots.kubernetes[].object ]' < $BINDING_CONTEXT_PATH)
 }
