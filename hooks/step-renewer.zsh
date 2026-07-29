@@ -111,9 +111,15 @@ function renew_certificates {
 function process_binding_context {
     [[ -n $STEP_RENEWER_STEP_CA_URL ]] || abend 'STEP_RENEWER_STEP_CA_URL is not set'
     [[ -n $STEP_RENEWER_STEP_CA_FINGERPRINT ]] || abend 'STEP_RENEWER_STEP_CA_FINGERPRINT is not set'
+    # The operator's knob is the fraction of life REMAINING at which to renew
+    # (STEP_RENEWER_LIFE_REMAINING, e.g. 70% = renew with 70% of life left).
+    # step-cli's `--expires-in` counts the ELAPSED fraction instead, so convert
+    # here — elapsed = 100 - remaining — and keep that quirk off the interface.
+    typeset remaining=${STEP_RENEWER_LIFE_REMAINING:-50%}
+    typeset expires_in="$(( 100 - ${remaining%\%} ))%"
     renew_certificates \
         --ca-url $STEP_RENEWER_STEP_CA_URL \
         --ca-fingerprint $STEP_RENEWER_STEP_CA_FINGERPRINT \
-        --expires-in ${STEP_RENEWER_EXPIRES_IN:-50%} \
+        --expires-in $expires_in \
         --secrets <(jq '[ .[0].snapshots.kubernetes[].object ]' < $BINDING_CONTEXT_PATH)
 }
