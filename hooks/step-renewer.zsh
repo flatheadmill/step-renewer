@@ -34,8 +34,10 @@ function maybe_renew_certificate {
             print -- "secret=$namespace/$name certificate=$crt expires=$expires message=valid"
         fi
     done
-    # Do nothing if none of the certificates are expiring.
-    (( expiring )) || return
+    # Do nothing if none of the certificates are expiring. `return 0`, not a bare
+    # `return`: the failed `(( expiring ))` set $?=1, and a bare return would
+    # propagate it, failing the hook on every valid (nothing-to-do) scan.
+    (( expiring )) || return 0
     # Renew all the certificates while building a patch for our secret.
     typeset expirations=() patches=()
     for certificate in "${(@As,:,)certificates}"; do
@@ -43,7 +45,7 @@ function maybe_renew_certificate {
         typeset crt=$split[1] key=$split[2]
         if ! step ca renew --force $tmp/$crt <(base64 -d <<< $data[$key]) > /dev/null 2>&1; then
             printf 'unable to renew `%s/%s`.\n' $namespace $name
-            return
+            return 1
         fi
         expires=$(step certificate inspect --format json $tmp/$crt | jq -r '.validity.end')
         expirations+=( $expires )
