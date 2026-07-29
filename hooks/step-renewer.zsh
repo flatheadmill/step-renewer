@@ -107,8 +107,6 @@ function renew_certificates {
 }
 
 function process_binding_context {
-    typeset process_binding=${1:-}
-    shift
     [[ -n $STEP_RENEWER_STEP_CA_URL ]] || abend 'STEP_RENEWER_STEP_CA_URL is not set'
     [[ -n $STEP_RENEWER_STEP_CA_FINGERPRINT ]] || abend 'STEP_RENEWER_STEP_CA_FINGERPRINT is not set'
     renew_certificates \
