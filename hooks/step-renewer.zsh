@@ -115,5 +115,5 @@ function process_binding_context {
         --ca-url $STEP_RENEWER_STEP_CA_URL \
         --ca-fingerprint $STEP_RENEWER_STEP_CA_FINGERPRINT \
         --expires-in ${STEP_RENEWER_EXPIRES_IN:-50%} \
-        --cerificates <(jq '[ .[0].snapshots.kubernetes[].object ]' < $BINDING_CONTEXT_PATH)
+        --secrets <(jq '[ .[0].snapshots.kubernetes[].object ]' < $BINDING_CONTEXT_PATH)
 }
