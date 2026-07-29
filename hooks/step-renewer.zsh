@@ -64,9 +64,9 @@ function maybe_renew_certificate {
     # kubectl-level reload (SIGHUP, rollout) are driven off the secret change by a
     # MarginalJob instead, so this stays a plain-network escape hatch.
     if [[ -n $STEP_RENEWER_HUP ]]; then
-        print -r -- "$STEP_RENEWER_HUP" > $tmp/hup
+        printf '%s\n' "$STEP_RENEWER_HUP" > $tmp/hup
         chmod +x $tmp/hup
-        $tmp/hup "$namespace/$name" || print -u2 -- "secret=$namespace/$name message=hup-failed"
+        $tmp/hup "$namespace/$name" || printf '%s\n' "secret=$namespace/$name message=hup-failed" >&2
     fi
 }
 
