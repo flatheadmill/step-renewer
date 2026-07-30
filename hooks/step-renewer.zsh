@@ -21,12 +21,22 @@ function maybe_renew_certificate {
         (( ${+data[$key]} )) || abend 'key missing %s in %s' ${(qqq)key} ${(qqq)certificates}
         base64 -d <<< "$data[$crt]" > $tmp/$crt
         if ! expires=$(step certificate inspect --format json $tmp/$crt | jq -r '.validity.end'); then
+            # Malformed cert data — renewal can't fix it, so skip this secret
+            # WITHOUT failing the hook (a failed hook just retries every ~30s).
             print -- "secret=$namespace/$name certificate=$crt message=invalid"
-            return
-        else
-            print -- "secret=$namespace/$name certificate=$crt expires=$expires message=visiting"
+            return 0
         fi
+        print -- "secret=$namespace/$name certificate=$crt expires=$expires message=visiting"
         [[ $STEP_RENEWER_DEBUG = 1 ]] && step certificate inspect $tmp/$crt
+        # Already past its notAfter? `step ca renew` authenticates with the cert
+        # itself, so an expired cert can never renew itself — it needs a fresh
+        # issuance. Skip the whole secret and DON'T fail the hook: failing here is
+        # what spun shell-operator's retry every ~30s on a cert that can't recover.
+        # `--expires-in 0s` = "expires within 0s from now", i.e. at/after notAfter.
+        if step certificate needs-renewal --expires-in 0s $tmp/$crt 2>/dev/null; then
+            print -- "secret=$namespace/$name certificate=$crt expires=$expires message=expired-needs-reissue"
+            return 0
+        fi
         if step certificate needs-renewal --expires-in $o_expires_in $tmp/$crt 2>/dev/null; then
             print -- "secret=$namespace/$name certificate=$crt expires=$expires message=expiring"
             expiring=1
@@ -44,7 +54,12 @@ function maybe_renew_certificate {
         split=( "${(As:/:)certificate}" )
         typeset crt=$split[1] key=$split[2]
         if ! step ca renew --force $tmp/$crt <(base64 -d <<< $data[$key]) > /dev/null 2>&1; then
-            printf 'unable to renew `%s/%s`.\n' $namespace $name
+            # A still-valid cert that wouldn't renew is a transient error (step-ca
+            # unreachable, etc). Abandon THIS secret but let the loop carry on to
+            # the rest (isolation), and mark the run retryable so the hook exits
+            # non-zero and shell-operator retries — only for this recoverable case.
+            print -- "secret=$namespace/$name certificate=$crt message=renew-failed-will-retry"
+            retryable=1
             return 1
         fi
         expires=$(step certificate inspect --format json $tmp/$crt | jq -r '.validity.end')
@@ -81,7 +96,9 @@ function renew_certificates {
     set -- "${(@)tape}"
     typeset -A annotations labels data metadata
     typeset namespace name tmp
-    integer count
+    # `retryable` is set by maybe_renew_certificate (dynamic scope) when a
+    # still-valid cert fails to renew; it is the ONLY thing that fails the hook.
+    integer count retryable=0
     tmp=$(mktemp -d) || abend 'cannot create temporary directory'
     {
         STEPPATH=$tmp/step step ca bootstrap --force \
@@ -103,6 +120,9 @@ function renew_certificates {
             shift $count
             STEPPATH=$tmp/step maybe_renew_certificate
         done
+        # Succeed unless a still-valid cert failed to renew (retryable). Expired
+        # or malformed certs never set it, so they no longer spin the retry loop.
+        (( retryable == 0 ))
     } always {
         [[ -d $tmp ]] && rm -rf $tmp
     }
