@@ -131,3 +131,12 @@ STEP_RENEWER_EXPIRES_IN='0%' \
   STEP_RENEWER_FINGERPRINT=6fedeaa92e08e59967b8cb4ead5427b2c51a6ccb45cfe4f504d5af1a3392c16c \
     debug/binding_context ./binding_context.json
 ```
+# Renewal failures
+
+Malformed, expired, or incomplete certificate pairs are skipped without stopping
+other Secrets. CA failures and failed Secret patches make the scan retryable.
+All renewed certificate fields are patched together, with the observed Secret
+resource version as a precondition so concurrent reissuance cannot mix new keys
+with an older renewal. `STEP_RENEWER_LIFE_REMAINING` accepts 1% through 99%.
+
+Run the isolated lifecycle checks with `zshctl test/renewal.zsh`.
