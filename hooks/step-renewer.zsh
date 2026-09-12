@@ -5,6 +5,7 @@
 # makes the code easier to read.
 
 function maybe_renew_certificate {
+    setopt localoptions pipefail
     # First go through the certificates and determine if any are expiring. If
     # one certificate is expiring, all certificates are renewed. This keeps use
     # from repeating a certificate rollout if we land on whisker where only some
@@ -15,12 +16,17 @@ function maybe_renew_certificate {
     typeset certificate split=()
     for certificate in "${(@As,:,)certificates}"; do
         split=( "${(As:/:)certificate}" )
-        (( ${#split} == 2 )) || abend 'bad certificate format %s' $certificates
+        if (( ${#split} != 2 )); then
+            printf 'secret=%s/%s message=invalid-pairs\n' "$namespace" "$name"
+            return 0
+        fi
         typeset crt=$split[1] key=$split[2]
-        (( ${+data[$crt]} )) || abend 'certificate missing %s in %s' ${(qqq)crt} ${(qqq)certificates}
-        (( ${+data[$key]} )) || abend 'key missing %s in %s' ${(qqq)key} ${(qqq)certificates}
-        base64 -d <<< "$data[$crt]" > $tmp/$crt
-        if ! expires=$(step certificate inspect --format json $tmp/$crt | jq -r '.validity.end'); then
+        if [[ -z $crt || -z $key ]] || (( ! ${+data[$crt]} || ! ${+data[$key]} )); then
+            printf 'secret=%s/%s message=missing-certificate-pair\n' "$namespace" "$name"
+            return 0
+        fi
+        if ! base64 -d <<< "$data[$crt]" > $tmp/$crt 2>/dev/null ||
+           ! expires=$(step certificate inspect --format json $tmp/$crt | jq -er '.validity.end'); then
             # Malformed cert data — renewal can't fix it, so skip this secret
             # WITHOUT failing the hook (a failed hook just retries every ~30s).
             print -- "secret=$namespace/$name certificate=$crt message=invalid"
@@ -65,13 +71,17 @@ function maybe_renew_certificate {
         expires=$(step certificate inspect --format json $tmp/$crt | jq -r '.validity.end')
         expirations+=( $expires )
         patches+=( $crt=%$tmp/$crt )
-        print -- "secret=$namespace/$name certificate=$crt expires=$expires message=renewed"
     done
     # Patch our secret all at once with the new certificates. We use the
     # expiration of our first renewal as the expiration date for the secret.
-    kubectl -n $namespace patch secret $name --patch-file =(
-        jo data="$(jo "${(@)patches}")" metadata="$(jo annotations="$(jo step-renewer.flatheadmill.com/expires=$expirations[1])")"
-    ) > /dev/null
+    if ! kubectl -n $namespace patch secret $name --patch-file =(
+        jo data="$(jo "${(@)patches}")" metadata="$(jo -- -s resourceVersion=$resource_version annotations="$(jo step-renewer.flatheadmill.com/expires=$expirations[1])")"
+    ) > /dev/null; then
+        printf 'secret=%s/%s message=patch-failed-will-retry\n' "$namespace" "$name"
+        retryable=1
+        return 1
+    fi
+    printf 'secret=%s/%s expires=%s message=renewed\n' "$namespace" "$name" "$expirations[1]"
 }
 
 function renew_certificates {
@@ -85,6 +95,7 @@ function renew_certificates {
             (.data // {}) as $data |
             .metadata.namespace,
             .metadata.name,
+            .metadata.resourceVersion,
             (.metadata.labels | length) * 2,
             (.metadata.labels | to_entries[] | (.key, .value)),
             ($annotations | length) * 2,
@@ -95,7 +106,7 @@ function renew_certificates {
     )}}" )
     set -- "${(@)tape}"
     typeset -A annotations labels data metadata
-    typeset namespace name tmp
+    typeset namespace name resource_version tmp
     # `retryable` is set by maybe_renew_certificate (dynamic scope) when a
     # still-valid cert fails to renew; it is the ONLY thing that fails the hook.
     integer count retryable=0
@@ -106,8 +117,8 @@ function renew_certificates {
             --fingerprint $o_ca_fingerprint > /dev/null 2>&1 ||
                 abend 'unable to bootstrap step'
         while (( $# )); do
-            namespace=${1:-} name=${2:-} count=${3:-}
-            shift 3
+            namespace=${1:-} name=${2:-} resource_version=${3:-} count=${4:-}
+            shift 4
             labels=( "$@[1,$count]" )
             shift $count
             count=${1:-}
@@ -136,6 +147,7 @@ function process_binding_context {
     # step-cli's `--expires-in` counts the ELAPSED fraction instead, so convert
     # here — elapsed = 100 - remaining — and keep that quirk off the interface.
     typeset remaining=${STEP_RENEWER_LIFE_REMAINING:-50%}
+    [[ $remaining = <1-99>% ]] || abend 'STEP_RENEWER_LIFE_REMAINING must be 1%% through 99%%'
     typeset expires_in="$(( 100 - ${remaining%\%} ))%"
     renew_certificates \
         --ca-url $STEP_RENEWER_STEP_CA_URL \
